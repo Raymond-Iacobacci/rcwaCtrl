@@ -2,9 +2,9 @@ import sys
 import typing
 import scipy as sp  # This shouldn't have to be in here, it breaks minimal imports
 
-import autograd.numpy as npa
 import numpy as np
 import numpy.typing as npt
+
 import ff
 
 logging = False
@@ -146,9 +146,11 @@ class Solver:
             bwd_prop_matrix = sp.linalg.expm(np.diag(bwd_lambda_w) * layer.thickness * 2 * np.pi / self.wavelength) # NOTE: check with Declan since this restriction means that we deal with vertically isotropic media only -- this is true in our case, but it is not true in general...
             
             trns_matrix = np.block([[w, w], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * -1j, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * -1j]])
-
-            M1 = np.linalg.inv(trns_matrix) @ vac_trns_matrix
             # print('Layer transfer matrix:')
+            # print(trns_matrix)
+            M1 = np.linalg.inv(trns_matrix) @ vac_trns_matrix
+            print("M1:")
+            print(M1)
             # ff.printdf(trns_matrix)
             # print(f'First interface transfer matrix:')
             # ff.printdf(np.abs(M1))
@@ -163,23 +165,25 @@ class Solver:
             
             # print(f'Scattering matrix shape:\n{M1.shape}')
             
-            trns_prop_matrix = np.block([[w @ bwd_prop_matrix, w @ fwd_prop_matrix], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * 1j @ bwd_prop_matrix, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * -1j @ fwd_prop_matrix]])
+            trns_prop_matrix = np.block([[w @ bwd_prop_matrix, w @ fwd_prop_matrix], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * -1j @ bwd_prop_matrix, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * -1j @ fwd_prop_matrix]])
             M2 = np.linalg.inv(vac_trns_matrix2) @ trns_prop_matrix # NOTE: bug in this last one, it should not reverse the transfer relations from the first one
             print(vac_trns_matrix)
             print(trns_matrix)
-            print(np.abs(trns_prop_matrix))
-            print(vac_trns_matrix2)
+            print(trns_prop_matrix)
+            print(np.linalg.inv(vac_trns_matrix2))
             # print(f'Second layer propagation transfer matrix:')
             # ff.printdf(trns_prop_matrix)
             # print(np.linalg.det(trns_prop_matrix))
             m11, m12, m21, m22 = ff.quar(M2)
             fref_coefs = -np.linalg.inv(m22) @ m21
             print('Second half transfer matrix:')
-            ff.printdf(np.abs(M2))
+            print(M2)
 
-            M2 @= M1
+            # M2 = M2 @ M1
             
-            
+            print("Final transfer matrix:")
+            print(M2 @ M1)
+            print(M1)
             # print(f'Normal harmonics: {self.n_harmonics}, {3 * self.n_harmonics + 1}')
             # print(np.sum(np.abs(fref_coefs)))
             # for i in range(fref_coefs.shape[0]):
