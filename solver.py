@@ -137,6 +137,10 @@ class Solver:
             
             bwd_prop_matrix = sp.linalg.expm(np.diag(bwd_lambda_w) * layer.thickness * 2 * np.pi / self.wavelength) # NOTE: check with Declan since this restriction means that we deal with vertically isotropic media only -- this is true in our case, but it is not true in general...
             # q=np.array([[2,0],[0,-2]])
+            print("Backward lambda:")
+            print(bwd_lambda_w)
+            print("Forward lambda:")
+            print(fwd_lambda_w)
             trns_matrix = np.block([[w, w], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * 1j, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * 1j]])
             print('Layer transfer matrix:')
             print(trns_matrix)
@@ -150,16 +154,23 @@ class Solver:
             b=M1[2,0]
             c=M1[0,2]
             d=M1[2,2]
-            print(-b/d)
+            REF = -b/d
+            print(REF)
             print("First interface propagation:")
-            print(a+c*(-b/d))
-            print("Backwards propagating matrix:")
-            print(bwd_prop_matrix)
-            print("Forwards propagating matrix:")
-            print(fwd_prop_matrix)
+            TRNS = a+c*REF
+            print(TRNS)
+            print("total")
+            print(REF**2+TRNS**2,TRNS-REF)
+            # print("Backwards propagating matrix:")
+            # print(bwd_prop_matrix)
+            # print("Forwards propagating matrix:")
+            # print(fwd_prop_matrix)
             # ff.printdf(trns_matrix)
             # print(f'First interface transfer matrix:')
             # ff.printdf(np.abs(M1))
+            '''
+            The <1 is because we're in a medium that, while it doesn't absorb, the amplitudes are expressed differently
+            '''
             m11, m12, m21, m22 = ff.quar(M1) # this is not the answer since the transfer matrix works off of sx, sy, ux, and uy
             fref_coefs = -np.linalg.inv(m22) @ m21
             unit_power = np.zeros(2 * self.graph_harmonics)
@@ -170,13 +181,25 @@ class Solver:
             # print(np.linalg.inv(vac_w))
             
             # print(f'Scattering matrix shape:\n{M1.shape}')
-            
+            print("Forward propagation matrix")
+            print(fwd_prop_matrix)
+            print("Backward propagation matrix")
+            print(bwd_prop_matrix)
+            e=fwd_prop_matrix[0,0]
+            print("Second interface propagation:")
+            print(2/(1/e+1/(np.sqrt(2) * e)))
+            print((np.sqrt(2)*e**2+np.sqrt(2))/(e+np.sqrt(2)))
+            print((np.sqrt(2)*e**2+np.sqrt(2))/(-e+np.sqrt(2)))
+            print((np.sqrt(2)*e**2-np.sqrt(2))/(e+np.sqrt(2)))
+            print((np.sqrt(2)*e**2-np.sqrt(2))/(-e+np.sqrt(2)))
+            print((np.sqrt(2)*e**2+np.sqrt(2))/(e-np.sqrt(2)))
+            print((np.sqrt(2)*e**2+np.sqrt(2))/(-e-np.sqrt(2)))
+            print((np.sqrt(2)*e**2-np.sqrt(2))/(e-np.sqrt(2)))
+            print((np.sqrt(2)*e**2-np.sqrt(2))/(-e-np.sqrt(2)))
             trns_prop_matrix = np.block([[w @ bwd_prop_matrix, w @ fwd_prop_matrix], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * 1j @ bwd_prop_matrix, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * 1j @ fwd_prop_matrix]])
             M2 = np.linalg.inv(vac_trns_matrix2) @ trns_prop_matrix # NOTE: bug in this last one, it should not reverse the transfer relations from the first one
-            print(vac_trns_matrix)
-            print(trns_matrix)
             print(trns_prop_matrix)
-            print(np.linalg.inv(vac_trns_matrix2))
+            print(vac_trns_matrix2)
             # print(f'Second layer propagation transfer matrix:')
             # ff.printdf(trns_prop_matrix)
             # print(np.linalg.det(trns_prop_matrix))
