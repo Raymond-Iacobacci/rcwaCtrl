@@ -120,37 +120,43 @@ class Solver:
         vac_fwd_lambda_w = np.where(np.real(vac_lambda_w) < 0, -vac_lambda_w, vac_lambda_w)
         vac_bwd_lambda_w = np.where(np.real(vac_lambda_w) >= 0, -vac_lambda_w, vac_lambda_w)
         
-        vac_trns_matrix = np.block([[vac_w, vac_w], [vac_q @ vac_w @ np.linalg.inv(np.diag(vac_bwd_lambda_w)) * -1j, vac_q @ vac_w @ np.linalg.inv(np.diag(vac_fwd_lambda_w)) * -1j]]) # NOTE: sign convention
-
-        print("Vacuum transfer matrix:")
-        ff.printdf(vac_trns_matrix)
+        vac_trns_matrix = np.block([[vac_w, vac_w], [vac_q @ vac_w @ np.linalg.inv(np.diag(vac_bwd_lambda_w)) * 1j, vac_q @ vac_w @ np.linalg.inv(np.diag(vac_fwd_lambda_w)) * 1j]]) # NOTE: sign convention
         
-        vac_trns_matrix2 = np.block([[vac_w, vac_w], [vac_q @ vac_w @ np.linalg.inv(np.diag(vac_bwd_lambda_w)) * 1j, vac_q @ vac_w @ np.linalg.inv(np.diag(vac_fwd_lambda_w)) * 1j]]) # NOTE: sign convention
-        
-        print(f'Inverse vacuum:')
-        ff.printdf(vac_trns_matrix2)
+        vac_trns_matrix2 = np.block([[vac_w, vac_w], [vac_q @ vac_w @ np.linalg.inv(np.diag(vac_bwd_lambda_w)) * -1j, vac_q @ vac_w @ np.linalg.inv(np.diag(vac_fwd_lambda_w)) * -1j]]) # NOTE: sign convention
         
         for i, layer in enumerate(self.layer_stack[1:]):
             p, q = self.pq_matrices(layer, self.kx0)
-            
+            print(q)
             lambda_w_sqr, w = np.linalg.eig(p @ q)
-            print(p,q)
-            print(w)
             lambda_w = np.sqrt(lambda_w_sqr)
-            print(f'Lambda results (propagation):\n{lambda_w}')
-            
+            print(lambda_w)
             fwd_lambda_w = np.where(np.real(lambda_w) < 0, -lambda_w, lambda_w)
             fwd_prop_matrix = sp.linalg.expm(np.diag(fwd_lambda_w) * -layer.thickness * 2 * np.pi / self.wavelength)
 
             bwd_lambda_w = np.where(np.real(lambda_w) >= 0, -lambda_w, lambda_w)
-            bwd_prop_matrix = sp.linalg.expm(np.diag(bwd_lambda_w) * layer.thickness * 2 * np.pi / self.wavelength) # NOTE: check with Declan since this restriction means that we deal with vertically isotropic media only -- this is true in our case, but it is not true in general...
             
-            trns_matrix = np.block([[w, w], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * -1j, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * -1j]])
-            # print('Layer transfer matrix:')
-            # print(trns_matrix)
+            bwd_prop_matrix = sp.linalg.expm(np.diag(bwd_lambda_w) * layer.thickness * 2 * np.pi / self.wavelength) # NOTE: check with Declan since this restriction means that we deal with vertically isotropic media only -- this is true in our case, but it is not true in general...
+            # q=np.array([[2,0],[0,-2]])
+            trns_matrix = np.block([[w, w], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * 1j, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * 1j]])
+            print('Layer transfer matrix:')
+            print(trns_matrix)
+            print("Vacuum transfer matrix")
+            print(vac_trns_matrix)
             M1 = np.linalg.inv(trns_matrix) @ vac_trns_matrix
             print("M1:")
             print(M1)
+            print("First interface reflection:")
+            a=M1[0,0]
+            b=M1[2,0]
+            c=M1[0,2]
+            d=M1[2,2]
+            print(-b/d)
+            print("First interface propagation:")
+            print(a+c*(-b/d))
+            print("Backwards propagating matrix:")
+            print(bwd_prop_matrix)
+            print("Forwards propagating matrix:")
+            print(fwd_prop_matrix)
             # ff.printdf(trns_matrix)
             # print(f'First interface transfer matrix:')
             # ff.printdf(np.abs(M1))
@@ -165,7 +171,7 @@ class Solver:
             
             # print(f'Scattering matrix shape:\n{M1.shape}')
             
-            trns_prop_matrix = np.block([[w @ bwd_prop_matrix, w @ fwd_prop_matrix], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * -1j @ bwd_prop_matrix, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * -1j @ fwd_prop_matrix]])
+            trns_prop_matrix = np.block([[w @ bwd_prop_matrix, w @ fwd_prop_matrix], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * 1j @ bwd_prop_matrix, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * 1j @ fwd_prop_matrix]])
             M2 = np.linalg.inv(vac_trns_matrix2) @ trns_prop_matrix # NOTE: bug in this last one, it should not reverse the transfer relations from the first one
             print(vac_trns_matrix)
             print(trns_matrix)
@@ -177,12 +183,13 @@ class Solver:
             m11, m12, m21, m22 = ff.quar(M2)
             fref_coefs = -np.linalg.inv(m22) @ m21
             print('Second half transfer matrix:')
+            print(np.abs(M2))
             print(M2)
 
-            # M2 = M2 @ M1
+            M2 @= M1
             
             print("Final transfer matrix:")
-            print(M2 @ M1)
+            print(M2)
             print(M1)
             # print(f'Normal harmonics: {self.n_harmonics}, {3 * self.n_harmonics + 1}')
             # print(np.sum(np.abs(fref_coefs)))
