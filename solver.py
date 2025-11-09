@@ -121,17 +121,15 @@ class Solver:
         vac_bwd_lambda_w = np.where(np.real(vac_lambda_w) >= 0, -vac_lambda_w, vac_lambda_w)
         
         vac_trns_matrix = np.block([[vac_w, vac_w], [vac_q @ vac_w @ np.linalg.inv(np.diag(vac_bwd_lambda_w)) * -1j, vac_q @ vac_w @ np.linalg.inv(np.diag(vac_fwd_lambda_w)) * -1j]]) # NOTE: sign convention
-        print('Vacuum transfer matrix:')
-        print(vac_trns_matrix)
-        
-        vac_trns_matrix2 = np.block([[vac_w, vac_w], [vac_q @ vac_w @ np.linalg.inv(np.diag(vac_bwd_lambda_w)) * -1j, vac_q @ vac_w @ np.linalg.inv(np.diag(vac_fwd_lambda_w)) * -1j]]) # NOTE: sign convention
+
+        # vac_trns_matrix2 = np.block([[vac_w, vac_w], [vac_q @ vac_w @ np.linalg.inv(np.diag(vac_bwd_lambda_w)) * -1j, vac_q @ vac_w @ np.linalg.inv(np.diag(vac_fwd_lambda_w)) * -1j]]) # NOTE: sign convention
+        vac_trns_matrix2 = np.copy(vac_trns_matrix)
         
         for i, layer in enumerate(self.layer_stack[1:]):
             p, q = self.pq_matrices(layer, self.kx0)
             # print(q)
             lambda_w_sqr, w = np.linalg.eig(p @ q)
             lambda_w = np.sqrt(lambda_w_sqr)
-            # print(lambda_w)
             fwd_lambda_w = np.where(np.real(lambda_w) < 0, -lambda_w, lambda_w) # we reverse this because we are actually taking exp(-lambda) in the next layer, so the real values' contributions decrease
             fwd_prop_matrix = sp.linalg.expm(np.diag(fwd_lambda_w) * -layer.thickness * 2 * np.pi / self.wavelength)
 
@@ -144,33 +142,13 @@ class Solver:
             transfer_propagation_matrix_prefactor = np.block([[w, w],[-Vb, Vf]])
             transfer_propagation_matrix = np.block([[bwd_prop_matrix, np.zeros(shape = bwd_prop_matrix.shape)],[np.zeros(shape = bwd_prop_matrix.shape), fwd_prop_matrix]])
 
-            print('Lambdas:')
-            print(fwd_lambda_w)
-            print(bwd_lambda_w)
-
-            print('Propagation matrices:')
-            print(fwd_prop_matrix)
-            print(bwd_prop_matrix)
-
-            # print('Propagation matrix magnitudes')
-            # print(np.abs(fwd_prop_matrix))
-            # print(np.abs(bwd_prop_matrix))
-
-            trns_matrix = np.block([[w, w], [q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * -1j, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * -1j]])
 
             V1f = q @ w @ np.linalg.inv(np.diag(fwd_lambda_w))
             V1b = q @ w @ np.linalg.inv(np.diag(bwd_lambda_w))
-            # trns_matrix = np.block([[]])
-            print('Vacuum transfer matrix:')
-            print(vac_trns_matrix)
-            print('RHS matrix:')
-            print(trns_matrix)
-
+            trns_matrix = np.block([[w, w],[V1b * -1j, V1f * -1j]])
 
             M1 = np.linalg.inv(trns_matrix) @ vac_trns_matrix
 
-            print('First-boundary transfer matrix:')
-            print(M1)
             '''
             The <1 is because we're in a medium that, while it doesn't absorb, the amplitudes are expressed differently
             '''
@@ -178,35 +156,20 @@ class Solver:
             fref_coefs = -np.linalg.inv(m22) @ m21
             unit_power = np.zeros(2 * self.graph_harmonics)
             unit_power[self.n_harmonics] = 1
-            print('V:')
-            print(q@w@np.linalg.inv(np.diag(bwd_lambda_w)))
-            # print(np.linalg.inv(vac_trns_matrix2))
-            # print(bwd_lambda_w)
             trns_prop_matrix = np.block([[w @ bwd_prop_matrix, w @ fwd_prop_matrix], [-q @ w @ np.linalg.inv(np.diag(bwd_lambda_w)) * 1j @ bwd_prop_matrix, q @ w @ np.linalg.inv(np.diag(fwd_lambda_w)) * -1j @ fwd_prop_matrix]])
-            print('Transfer propagation matrix:')
-            print(trns_prop_matrix)
-            print('Fundamentally calculated transfer propagation matrix:')
-            print(transfer_propagation_matrix)
             M2 = np.linalg.inv(vac_trns_matrix2) @ trns_prop_matrix # NOTE: bug in this last one, it should not reverse the transfer relations from the first one
-            print(f'M2:\n{M2}')
             m11, m12, m21, m22 = ff.quar(M2)
             fref_coefs = -np.linalg.inv(m22) @ m21
-            # print('Second half transfer matrix:')
-            # print(np.abs(M2))
-            # print(M2)
 
-            M2 @= M1
-            
-            # print("Final transfer matrix:")
-            # print(M2)
-            # print(M1)
-            # print(f'Normal harmonics: {self.n_harmonics}, {3 * self.n_harmonics + 1}')
-            # print(np.sum(np.abs(fref_coefs)))
-            # for i in range(fref_coefs.shape[0]):
-            #     print(i, fref_coefs[i,i])
-            
-            # ff.printdf(np.abs(M1))
-            
-            break
+            # --- Total transfer matrix from left vacuum to right vacuum
+            M_total = M2 @ M1
+
+            print(f'Layer {i+1}')
+            print(M_total)
+            print(np.abs(M_total))
+            print('-'*100)
+
+            # The negative-z convention for propagation of light implies that if the incoming x amplitude is +1 for the electric field (assuming x-polarized light), then the incoming y amplitude should be -1 for the magnetic field
+
             # ...they should all be reflected/refracted with the same magnitudes...right?
             # We can do a test by computing the off-diagonal 4-blocks of the scattering matrix, if the magnetic fields and electric fields don't intersect (or maybe the smaller off-diagonal sub-blocks since we're looking at the intersection of polarities)
